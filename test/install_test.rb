@@ -25,7 +25,7 @@ class ExercismRbInstallTest < ExercismRbTestCase
 
       assert_equal 0, code, err
       assert_includes out, "xrb install: cloning exercism-rb"
-      assert_includes out, "xrb installed at #{File.join(bin_dir, 'xrb')}"
+      assert_includes out, "xrb installed at #{File.join(bin_dir, "xrb")}"
       assert_includes out, "xrb 0.1.0"
       refute_includes err, "xrb install: warning"
       assert File.symlink?(File.join(bin_dir, "xrb"))
@@ -88,7 +88,7 @@ class ExercismRbInstallTest < ExercismRbTestCase
       )
 
       assert_equal 1, code
-      assert_includes err, "#{File.join(bin_dir, 'xrb')} already exists"
+      assert_includes err, "#{File.join(bin_dir, "xrb")} already exists"
       assert_equal "already here\n", File.read(File.join(bin_dir, "xrb"))
     end
   end
@@ -142,7 +142,7 @@ class ExercismRbInstallTest < ExercismRbTestCase
       )
 
       assert_equal 0, code, err
-      assert_includes out, "exercism already installed: #{File.join(fake_bin, 'exercism')}"
+      assert_includes out, "exercism already installed: #{File.join(fake_bin, "exercism")}"
       refute File.exist?(File.join(bin_dir, "exercism"))
     end
   end
@@ -168,7 +168,7 @@ class ExercismRbInstallTest < ExercismRbTestCase
 
     $VERBOSE = nil
     Net::HTTP.define_singleton_method(:start) do |host, port, use_ssl:, &block|
-      start_args = { host: host, port: port, use_ssl: use_ssl }
+      start_args = {host: host, port: port, use_ssl: use_ssl}
       block.call(fake_http)
     end
     $VERBOSE = original_verbose
@@ -176,7 +176,7 @@ class ExercismRbInstallTest < ExercismRbTestCase
     result = ExercismRbInstaller.new([]).send(:http_get, URI("https://example.test/archive.tar.gz"))
 
     assert_same response, result
-    assert_equal({ host: "example.test", port: 443, use_ssl: true }, start_args)
+    assert_equal({host: "example.test", port: 443, use_ssl: true}, start_args)
     assert_equal ExercismRbInstaller::HTTP_OPEN_TIMEOUT, fake_http.open_timeout
     assert_equal ExercismRbInstaller::HTTP_READ_TIMEOUT, fake_http.read_timeout
     assert_equal ExercismRbInstaller::HTTP_WRITE_TIMEOUT, fake_http.write_timeout
@@ -203,7 +203,7 @@ class ExercismRbInstallTest < ExercismRbTestCase
         "--install-dir", install_dir,
         "--bin-dir", bin_dir,
         "--no-exercism",
-        extra_env: { "XRB_INSTALL_OVERWRITE" => "1" }
+        extra_env: {"XRB_INSTALL_OVERWRITE" => "1"}
       )
 
       assert_equal 1, code
@@ -235,7 +235,7 @@ class ExercismRbInstallTest < ExercismRbTestCase
   end
 
   def path_with(*dirs)
-    { "PATH" => [*dirs, ENV.fetch("PATH")].join(":") }
+    {"PATH" => [*dirs, ENV.fetch("PATH")].join(":")}
   end
 
   def git_available?
@@ -273,6 +273,6 @@ class ExercismRbInstallTest < ExercismRbTestCase
   def git!(repo, *args)
     out, err, status = Open3.capture3("git", "-C", repo, *args)
 
-    assert status.success?, "git #{args.join(' ')} failed\nstdout:\n#{out}\nstderr:\n#{err}"
+    assert status.success?, "git #{args.join(" ")} failed\nstdout:\n#{out}\nstderr:\n#{err}"
   end
 end

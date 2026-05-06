@@ -7,6 +7,28 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ## Unreleased
 
+## 0.2.0 - 2026-05-06
+
+### Added
+
+- Support for `.exercism/config.json` `files.solution` and `files.test` metadata.
+- `--no-edit` for `xrb new` to download and save the current exercise without opening an editor.
+- Repeatable `--file FILE` overrides for `xrb submit` and `xrb test`.
+- Standard, Bundler Audit, Reek, RubyCritic, and opt-in SimpleCov coverage as development quality tools.
+
+### Changed
+
+- `xrb submit` now delegates default file selection to the Exercism CLI when exercise config is available.
+- `xrb test` can run multiple configured or explicitly selected test files in order.
+- `xrb edit` and `xrb new` now require an explicit editor through `XRB_EDITOR`, `VISUAL`, or `EDITOR` instead of assuming `nvim`.
+- CLI status, warning, and error output now uses color without log-style labels.
+- Release process details moved from `README.md` to `CONTRIBUTING.md`.
+
+### Fixed
+
+- `xrb new` now explains the likely workspace mismatch when download succeeds but the expected exercise directory is missing.
+- Command execution errors now distinguish missing commands from commands that ran and returned a non-zero exit code.
+
 ## 0.1.0 - 2026-05-06
 
 ### Added

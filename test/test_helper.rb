@@ -1,11 +1,21 @@
 # frozen_string_literal: true
 
 require "fileutils"
+require "json"
 require "minitest/autorun"
 require "open3"
 require "rbconfig"
 require "stringio"
 require "tmpdir"
+
+if ENV["COVERAGE"] == "1"
+  require "simplecov"
+
+  SimpleCov.start do
+    enable_coverage :branch
+    add_filter "/test/"
+  end
+end
 
 require_relative "../lib/exercism/rb"
 
@@ -19,13 +29,31 @@ module ExercismRbTestHelpers
     assert_includes error.message, expected_message
   end
 
-  def create_exercise(root, slug)
+  def create_exercise(root, slug, solution_files: nil, test_files: nil, config: false)
     exercise_dir = File.join(root, slug)
     basename = slug.tr("-", "_")
+    solution_files ||= ["#{basename}.rb"]
+    test_files ||= ["#{basename}_test.rb"]
+
     FileUtils.mkdir_p(exercise_dir)
-    File.write(File.join(exercise_dir, "#{basename}.rb"), "")
-    File.write(File.join(exercise_dir, "#{basename}_test.rb"), "")
+    (solution_files + test_files).each do |file|
+      path = File.join(exercise_dir, file)
+      FileUtils.mkdir_p(File.dirname(path))
+      File.write(path, "")
+    end
+    write_exercism_config(exercise_dir, solution_files: solution_files, test_files: test_files) if config
+
     exercise_dir
+  end
+
+  def write_exercism_config(exercise_dir, solution_files: nil, test_files: nil)
+    config_dir = File.join(exercise_dir, ".exercism")
+    files = {}
+    files["solution"] = solution_files unless solution_files.nil?
+    files["test"] = test_files unless test_files.nil?
+
+    FileUtils.mkdir_p(config_dir)
+    File.write(File.join(config_dir, "config.json"), JSON.pretty_generate("files" => files))
   end
 
   def run_cli(argv, root:, state_path:, extra_env: {})
@@ -59,7 +87,7 @@ module ExercismRbTestHelpers
 
   def fake_env(bin_dir, log_path)
     {
-      "PATH" => "#{bin_dir}:#{ENV.fetch('PATH')}",
+      "PATH" => "#{bin_dir}:#{ENV.fetch("PATH")}",
       "XRB_COMMAND_LOG" => log_path
     }
   end

@@ -11,10 +11,10 @@ module Exercism
 
       def resolve(slug = nil, require_existing: true)
         exercise = if present?(slug)
-                     Exercise.new(slug: slug, track: @track, root: @root)
-                   else
-                     from_current_directory || from_state
-                   end
+          Exercise.new(slug: slug, track: @track, root: @root)
+        else
+          from_current_directory || from_state
+        end
 
         exercise.ensure_exists! if require_existing
         exercise

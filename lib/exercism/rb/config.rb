@@ -18,7 +18,7 @@ module Exercism
       end
 
       def editor
-        ENV["XRB_EDITOR"] || ENV["VISUAL"] || ENV["EDITOR"] || "nvim"
+        ENV["XRB_EDITOR"] || ENV["VISUAL"] || ENV["EDITOR"]
       end
     end
   end

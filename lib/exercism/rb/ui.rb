@@ -50,19 +50,19 @@ module Exercism
       end
 
       def info(message)
-        @out.puts("#{paint('info', :blue)} #{message}")
+        @out.puts(paint(message, :blue))
       end
 
       def success(message)
-        @out.puts("#{paint('done', :green)} #{message}")
+        @out.puts(paint(message, :green))
       end
 
       def warn(message)
-        @err.puts("#{paint('warn', :yellow)} #{message}")
+        @err.puts(paint(message, :yellow))
       end
 
       def error(message)
-        @err.puts("#{paint('error', :red)} #{message}")
+        @err.puts(paint(message, :red))
       end
 
       def command(message)

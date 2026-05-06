@@ -26,6 +26,11 @@ Gem::Specification.new do |spec|
   spec.bindir = "bin"
   spec.executables = ["xrb"]
 
+  spec.add_development_dependency "bundler-audit", "~> 0.9"
   spec.add_development_dependency "minitest", "~> 5.25"
   spec.add_development_dependency "rake", "~> 13.2"
+  spec.add_development_dependency "reek"
+  spec.add_development_dependency "rubycritic"
+  spec.add_development_dependency "simplecov", "~> 0.22"
+  spec.add_development_dependency "standard", "~> 1.40"
 end

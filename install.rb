@@ -30,7 +30,9 @@ class ExercismRbInstaller
   end
 
   def self.warn_message(message)
+    # rubocop:disable Style/StderrPuts
     $stderr.puts("xrb install: #{message}")
+    # rubocop:enable Style/StderrPuts
   end
 
   def initialize(argv)
@@ -232,7 +234,7 @@ class ExercismRbInstaller
       if (path = find_command("exercism"))
         say("exercism already installed: #{path}")
       elsif File.exist?(File.join(@bin_dir, "exercism"))
-        warn("#{File.join(@bin_dir, 'exercism')} exists but is not in PATH; leaving it untouched")
+        warn("#{File.join(@bin_dir, "exercism")} exists but is not in PATH; leaving it untouched")
       else
         install_exercism_cli
       end
@@ -292,7 +294,7 @@ class ExercismRbInstaller
     when /freebsd/i then "freebsd"
     when /openbsd/i then "openbsd"
     else
-      raise Error, "unsupported OS for automatic Exercism install: #{RbConfig::CONFIG.fetch('host_os')}"
+      raise Error, "unsupported OS for automatic Exercism install: #{RbConfig::CONFIG.fetch("host_os")}"
     end
   end
 
@@ -305,7 +307,7 @@ class ExercismRbInstaller
     when /armv6|armv7/i then "armv6"
     when /ppc64/i then "ppc64"
     else
-      raise Error, "unsupported architecture for automatic Exercism install: #{RbConfig::CONFIG.fetch('host_cpu')}"
+      raise Error, "unsupported architecture for automatic Exercism install: #{RbConfig::CONFIG.fetch("host_cpu")}"
     end
   end
 
@@ -396,7 +398,7 @@ class ExercismRbInstaller
   def run!(*args)
     return if system(*args)
 
-    raise Error, "command failed: #{args.join(' ')}"
+    raise Error, "command failed: #{args.join(" ")}"
   end
 
   def say(message)
@@ -404,7 +406,9 @@ class ExercismRbInstaller
   end
 
   def warn(message)
+    # rubocop:disable Style/StderrPuts
     $stderr.puts("xrb install: warning: #{message}")
+    # rubocop:enable Style/StderrPuts
   end
 
   def path_include?(path)

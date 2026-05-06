@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require "json"
+
 module Exercism
   module Rb
     class Exercise
@@ -16,6 +18,7 @@ module Exercism
         @track = track
         @root = File.expand_path(root)
         @path = File.expand_path(path || File.join(@root, @slug))
+        @exercism_config = nil
       end
 
       def exists?
@@ -28,32 +31,104 @@ module Exercism
         raise Error, "Exercise not found: #{@path}"
       end
 
-      def test_file
-        ensure_exists!
-        pick_one(files_matching { |name| name.end_with?("_test.rb") }, kind: "test file (*_test.rb)")
+      def exercism_config?
+        File.file?(config_path)
       end
 
-      def solution_file
+      def test_files(ambiguity_hint: nil)
         ensure_exists!
-        pick_one(files_matching { |name| name.end_with?(".rb") && !name.end_with?("_test.rb") }, kind: "solution file (.rb)")
+        configured_files("test", kind: "test file") || [pick_one(fallback_test_files, kind: "test file (*_test.rb)", ambiguity_hint: ambiguity_hint)]
+      end
+
+      def solution_files(ambiguity_hint: nil)
+        ensure_exists!
+        configured_files("solution", kind: "solution file") || [pick_one(fallback_solution_files, kind: "solution file (.rb)", ambiguity_hint: ambiguity_hint)]
+      end
+
+      def test_file(ambiguity_hint: nil)
+        pick_one(test_files(ambiguity_hint: ambiguity_hint), kind: "test file (*_test.rb)", ambiguity_hint: ambiguity_hint)
+      end
+
+      def solution_file(ambiguity_hint: nil)
+        pick_one(solution_files(ambiguity_hint: ambiguity_hint), kind: "solution file (.rb)", ambiguity_hint: ambiguity_hint)
       end
 
       private
 
-      def files_matching
-        Dir.children(@path)
-           .select { |name| File.file?(File.join(@path, name)) && yield(name) }
-           .sort
+      def config_path
+        File.join(@path, ".exercism", "config.json")
       end
 
-      def pick_one(files, kind:)
+      def exercism_config
+        return nil unless exercism_config?
+        return @exercism_config unless @exercism_config.nil?
+
+        config = JSON.parse(File.read(config_path))
+        raise_invalid_config("root must be an object") unless config.is_a?(Hash)
+
+        @exercism_config = config
+      rescue JSON::ParserError => error
+        raise Error, "Invalid Exercism config: #{config_path}: #{error.message}"
+      end
+
+      def configured_files(name, kind:)
+        config = exercism_config
+        return nil if config.nil?
+
+        files = config.fetch("files", nil)
+        return nil if files.nil?
+        raise_invalid_config("files must be an object") unless files.is_a?(Hash)
+        return nil unless files.key?(name)
+
+        values = files.fetch(name)
+        raise_invalid_config("files.#{name} must be an array") unless values.is_a?(Array)
+        raise_invalid_config("files.#{name} must not be empty") if values.empty?
+
+        values.each do |file|
+          raise_invalid_config("files.#{name} contains an empty path") unless file.is_a?(String) && !file.strip.empty?
+        end
+
+        ensure_configured_files_exist(values, kind: kind)
+      end
+
+      def ensure_configured_files_exist(files, kind:)
+        files.each do |file|
+          next if File.file?(File.absolute_path(file, @path))
+
+          raise Error, "Configured #{kind} not found: #{file}"
+        end
+
+        files
+      end
+
+      def raise_invalid_config(message)
+        raise Error, "Invalid Exercism config: #{config_path}: #{message}"
+      end
+
+      def fallback_test_files
+        files_matching { |name| name.end_with?("_test.rb") }
+      end
+
+      def fallback_solution_files
+        files_matching { |name| name.end_with?(".rb") && !name.end_with?("_test.rb") }
+      end
+
+      def files_matching
+        Dir.children(@path)
+          .select { |name| File.file?(File.join(@path, name)) && yield(name) }
+          .sort
+      end
+
+      def pick_one(files, kind:, ambiguity_hint: nil)
         case files.length
         when 0
           raise Error, "Could not find #{kind} in #{@path}"
         when 1
           files.first
         else
-          raise Error, "Found more than one #{kind} in #{@path}: #{files.join(', ')}"
+          message = "Found more than one #{kind} in #{@path}: #{files.join(", ")}"
+          message = "#{message}. #{ambiguity_hint}" if ambiguity_hint
+          raise Error, message
         end
       end
     end

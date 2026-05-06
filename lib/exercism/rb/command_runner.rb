@@ -15,12 +15,19 @@ module Exercism
         @ui.command("$ #{printable}")
 
         ok = if chdir
-               Dir.chdir(chdir) { system(*args) }
-             else
-               system(*args)
-             end
+          Dir.chdir(chdir) { system(*args) }
+        else
+          system(*args)
+        end
 
-        raise Error, "Command failed: #{Shellwords.join(args)}" unless ok
+        case ok
+        when true
+          true
+        when nil
+          raise Error, "Command not found: #{args.first}. Install it or ensure it is on PATH."
+        else
+          raise Error, "Command failed: #{Shellwords.join(args)}"
+        end
 
         true
       end

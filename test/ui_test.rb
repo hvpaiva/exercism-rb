@@ -11,7 +11,7 @@ class ExercismRbUiTest < ExercismRbTestCase
     end
 
     refute_includes out.string, "\e["
-    assert_includes out.string, "done Saved"
+    assert_equal "Saved\n", out.string
   end
 
   def test_xrb_color_always_forces_color
@@ -22,7 +22,20 @@ class ExercismRbUiTest < ExercismRbTestCase
     end
 
     assert_includes out.string, "\e[32m"
-    assert_includes out.string, "done"
+    assert_includes out.string, "Saved"
+  end
+
+  def test_warning_and_error_keep_color_on_stderr
+    err = StringIO.new
+
+    with_color_env("XRB_COLOR" => "always") do
+      ui = Exercism::Rb::UI.new(err: err)
+      ui.warn("Careful")
+      ui.error("Failed")
+    end
+
+    assert_includes err.string, "\e[33mCareful\e[0m"
+    assert_includes err.string, "\e[31mFailed\e[0m"
   end
 
   def test_xrb_color_never_disables_color_even_when_forced

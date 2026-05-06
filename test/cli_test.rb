@@ -11,7 +11,8 @@ class ExercismRbCliTest < ExercismRbTestCase
       assert_empty err
       assert_includes out, "Usage:"
       assert_includes out, "xrb irb [exercise]"
-      assert_includes out, "run the exercise test file"
+      assert_includes out, "--no-edit"
+      assert_includes out, "run exercise tests"
       refute_match(/[^\x00-\x7F]/, out)
     end
   end
@@ -130,6 +131,85 @@ class ExercismRbCliTest < ExercismRbTestCase
     end
   end
 
+  def test_cli_test_uses_configured_test_file
+    Dir.mktmpdir do |dir|
+      root = File.join(dir, "exercism", "ruby")
+      state_path = File.join(dir, "state.toml")
+      exercise_dir = create_exercise(root, "two-fer", test_files: ["custom_test.rb"], config: true)
+
+      with_fake_commands("ruby") do |bin_dir, log_path|
+        code, out, err = run_cli(["test", "two-fer"], root: root, state_path: state_path, extra_env: fake_env(bin_dir, log_path))
+
+        assert_equal 0, code
+        assert_empty err
+        assert_includes out, "Testing two-fer"
+        assert_command_log log_path, command: "ruby", pwd: exercise_dir, args: ["-r", "minitest/pride", "custom_test.rb"]
+      end
+    end
+  end
+
+  def test_cli_test_runs_multiple_configured_test_files
+    Dir.mktmpdir do |dir|
+      root = File.join(dir, "exercism", "ruby")
+      state_path = File.join(dir, "state.toml")
+      exercise_dir = create_exercise(root, "two-fer", test_files: ["two_fer_test.rb", "extra_test.rb"], config: true)
+
+      with_fake_commands("ruby") do |bin_dir, log_path|
+        code, out, err = run_cli(["test", "two-fer"], root: root, state_path: state_path, extra_env: fake_env(bin_dir, log_path))
+
+        assert_equal 0, code
+        assert_empty err
+        assert_includes out, "Testing two-fer"
+        assert_command_sequence(
+          log_path,
+          {command: "ruby", pwd: exercise_dir, args: ["-r", "minitest/pride", "two_fer_test.rb"]},
+          {command: "ruby", pwd: exercise_dir, args: ["-r", "minitest/pride", "extra_test.rb"]}
+        )
+      end
+    end
+  end
+
+  def test_cli_test_uses_explicit_file_option
+    Dir.mktmpdir do |dir|
+      root = File.join(dir, "exercism", "ruby")
+      state_path = File.join(dir, "state.toml")
+      exercise_dir = create_exercise(root, "two-fer", test_files: ["two_fer_test.rb", "custom_test.rb"], config: true)
+
+      with_fake_commands("ruby") do |bin_dir, log_path|
+        code, out, err = run_cli(["test", "two-fer", "--file", "custom_test.rb"], root: root, state_path: state_path, extra_env: fake_env(bin_dir, log_path))
+
+        assert_equal 0, code
+        assert_empty err
+        assert_includes out, "Testing two-fer"
+        assert_command_sequence(
+          log_path,
+          {command: "ruby", pwd: exercise_dir, args: ["-r", "minitest/pride", "custom_test.rb"]}
+        )
+      end
+    end
+  end
+
+  def test_cli_test_uses_multiple_explicit_file_options
+    Dir.mktmpdir do |dir|
+      root = File.join(dir, "exercism", "ruby")
+      state_path = File.join(dir, "state.toml")
+      exercise_dir = create_exercise(root, "two-fer")
+      File.write(File.join(exercise_dir, "extra_test.rb"), "")
+
+      with_fake_commands("ruby") do |bin_dir, log_path|
+        code, _out, err = run_cli(["test", "--file=two_fer_test.rb", "--file", "extra_test.rb", "two-fer"], root: root, state_path: state_path, extra_env: fake_env(bin_dir, log_path))
+
+        assert_equal 0, code
+        assert_empty err
+        assert_command_sequence(
+          log_path,
+          {command: "ruby", pwd: exercise_dir, args: ["-r", "minitest/pride", "two_fer_test.rb"]},
+          {command: "ruby", pwd: exercise_dir, args: ["-r", "minitest/pride", "extra_test.rb"]}
+        )
+      end
+    end
+  end
+
   def test_cli_test_reports_ambiguous_test_files_before_running_ruby
     Dir.mktmpdir do |dir|
       root = File.join(dir, "exercism", "ruby")
@@ -142,8 +222,37 @@ class ExercismRbCliTest < ExercismRbTestCase
 
         assert_equal 1, code
         assert_includes err, "Found more than one test file"
+        assert_includes err, "--file"
         refute File.exist?(log_path)
       end
+    end
+  end
+
+  def test_cli_test_reports_missing_file_option_value
+    Dir.mktmpdir do |dir|
+      root = File.join(dir, "exercism", "ruby")
+      state_path = File.join(dir, "state.toml")
+      create_exercise(root, "two-fer")
+
+      code, _out, err = run_cli(["test", "two-fer", "--file"], root: root, state_path: state_path)
+
+      assert_equal 1, code
+      assert_includes err, "Missing value for --file"
+    end
+  end
+
+  def test_cli_test_reports_missing_ruby_command
+    Dir.mktmpdir do |dir|
+      root = File.join(dir, "exercism", "ruby")
+      state_path = File.join(dir, "state.toml")
+      empty_bin = File.join(dir, "empty-bin")
+      FileUtils.mkdir_p(empty_bin)
+      create_exercise(root, "two-fer")
+
+      code, _out, err = run_cli(["test", "two-fer"], root: root, state_path: state_path, extra_env: {"PATH" => empty_bin})
+
+      assert_equal 1, code
+      assert_includes err, "Command not found: ruby"
     end
   end
 
@@ -217,6 +326,117 @@ class ExercismRbCliTest < ExercismRbTestCase
     end
   end
 
+  def test_cli_submit_delegates_default_files_to_exercism_when_config_exists
+    Dir.mktmpdir do |dir|
+      root = File.join(dir, "exercism", "ruby")
+      state_path = File.join(dir, "state.toml")
+      exercise_dir = create_exercise(root, "two-fer", solution_files: ["two_fer.rb", "helper.rb"], config: true)
+
+      with_fake_commands("exercism") do |bin_dir, log_path|
+        code, out, err = run_cli(["submit", "two-fer"], root: root, state_path: state_path, extra_env: fake_env(bin_dir, log_path))
+
+        assert_equal 0, code
+        assert_empty err
+        assert_includes out, "Submitting two-fer"
+        assert_command_log log_path, command: "exercism", pwd: exercise_dir, args: ["submit"]
+      end
+    end
+  end
+
+  def test_cli_submit_reports_ambiguous_solution_files_without_config
+    Dir.mktmpdir do |dir|
+      root = File.join(dir, "exercism", "ruby")
+      state_path = File.join(dir, "state.toml")
+      exercise_dir = create_exercise(root, "two-fer")
+      File.write(File.join(exercise_dir, "helper.rb"), "")
+
+      with_fake_commands("exercism") do |bin_dir, log_path|
+        code, _out, err = run_cli(["submit", "two-fer"], root: root, state_path: state_path, extra_env: fake_env(bin_dir, log_path))
+
+        assert_equal 1, code
+        assert_includes err, "Found more than one solution file"
+        assert_includes err, "--file"
+        refute File.exist?(log_path)
+      end
+    end
+  end
+
+  def test_cli_submit_uses_explicit_file_option
+    Dir.mktmpdir do |dir|
+      root = File.join(dir, "exercism", "ruby")
+      state_path = File.join(dir, "state.toml")
+      exercise_dir = create_exercise(root, "two-fer")
+
+      with_fake_commands("exercism") do |bin_dir, log_path|
+        code, out, err = run_cli(["submit", "--file=two_fer.rb", "two-fer"], root: root, state_path: state_path, extra_env: fake_env(bin_dir, log_path))
+
+        assert_equal 0, code
+        assert_empty err
+        assert_includes out, "Submitting two-fer"
+        assert_command_log log_path, command: "exercism", pwd: exercise_dir, args: ["submit", "two_fer.rb"]
+      end
+    end
+  end
+
+  def test_cli_submit_uses_multiple_explicit_file_options
+    Dir.mktmpdir do |dir|
+      root = File.join(dir, "exercism", "ruby")
+      state_path = File.join(dir, "state.toml")
+      exercise_dir = create_exercise(root, "two-fer")
+      File.write(File.join(exercise_dir, "helper.rb"), "")
+
+      with_fake_commands("exercism") do |bin_dir, log_path|
+        code, out, err = run_cli(["submit", "two-fer", "--file", "two_fer.rb", "--file", "helper.rb"], root: root, state_path: state_path, extra_env: fake_env(bin_dir, log_path))
+
+        assert_equal 0, code
+        assert_empty err
+        assert_includes out, "Submitting two-fer"
+        assert_command_log log_path, command: "exercism", pwd: exercise_dir, args: ["submit", "two_fer.rb", "helper.rb"]
+      end
+    end
+  end
+
+  def test_cli_submit_reports_missing_file_option_value
+    Dir.mktmpdir do |dir|
+      root = File.join(dir, "exercism", "ruby")
+      state_path = File.join(dir, "state.toml")
+      create_exercise(root, "two-fer")
+
+      code, _out, err = run_cli(["submit", "--file="], root: root, state_path: state_path)
+
+      assert_equal 1, code
+      assert_includes err, "Missing value for --file"
+    end
+  end
+
+  def test_cli_submit_reports_missing_file_option_value_when_flag_has_no_argument
+    Dir.mktmpdir do |dir|
+      root = File.join(dir, "exercism", "ruby")
+      state_path = File.join(dir, "state.toml")
+      create_exercise(root, "two-fer")
+
+      code, _out, err = run_cli(["submit", "two-fer", "--file"], root: root, state_path: state_path)
+
+      assert_equal 1, code
+      assert_includes err, "Missing value for --file"
+    end
+  end
+
+  def test_cli_submit_reports_missing_exercism_command
+    Dir.mktmpdir do |dir|
+      root = File.join(dir, "exercism", "ruby")
+      state_path = File.join(dir, "state.toml")
+      empty_bin = File.join(dir, "empty-bin")
+      FileUtils.mkdir_p(empty_bin)
+      create_exercise(root, "two-fer")
+
+      code, _out, err = run_cli(["submit", "two-fer"], root: root, state_path: state_path, extra_env: {"PATH" => empty_bin})
+
+      assert_equal 1, code
+      assert_includes err, "Command not found: exercism"
+    end
+  end
+
   def test_cli_submit_reports_failed_exercism_command
     Dir.mktmpdir do |dir|
       root = File.join(dir, "exercism", "ruby")
@@ -261,12 +481,31 @@ class ExercismRbCliTest < ExercismRbTestCase
         ["edit", "two-fer"],
         root: root,
         state_path: state_path,
-        extra_env: { "XRB_EDITOR" => "definitely-missing-xrb-editor --wait" }
+        extra_env: {"XRB_EDITOR" => "definitely-missing-xrb-editor --wait"}
       )
 
       assert_equal 1, code
       assert_includes err, "Editor not found: definitely-missing-xrb-editor"
       refute_includes err, "Command failed"
+    end
+  end
+
+  def test_cli_edit_reports_missing_editor_configuration
+    Dir.mktmpdir do |dir|
+      root = File.join(dir, "exercism", "ruby")
+      state_path = File.join(dir, "state.toml")
+      create_exercise(root, "two-fer")
+
+      code, _out, err = run_cli(
+        ["edit", "two-fer"],
+        root: root,
+        state_path: state_path,
+        extra_env: {"XRB_EDITOR" => nil, "VISUAL" => nil, "EDITOR" => nil}
+      )
+
+      assert_equal 1, code
+      assert_includes err, "No editor configured"
+      assert_includes err, "XRB_EDITOR"
     end
   end
 
@@ -280,7 +519,7 @@ class ExercismRbCliTest < ExercismRbTestCase
         ["edit", "two-fer"],
         root: root,
         state_path: state_path,
-        extra_env: { "XRB_EDITOR" => "fake-editor \"" }
+        extra_env: {"XRB_EDITOR" => "fake-editor \""}
       )
 
       assert_equal 1, code
@@ -298,11 +537,11 @@ class ExercismRbCliTest < ExercismRbTestCase
         ["edit", "two-fer"],
         root: root,
         state_path: state_path,
-        extra_env: { "XRB_EDITOR" => "" }
+        extra_env: {"XRB_EDITOR" => ""}
       )
 
       assert_equal 1, code
-      assert_includes err, "Invalid editor in XRB_EDITOR/VISUAL/EDITOR"
+      assert_includes err, "No editor configured"
     end
   end
 
@@ -330,7 +569,7 @@ class ExercismRbCliTest < ExercismRbTestCase
     Dir.mktmpdir do |dir|
       root = File.join(dir, "exercism", "ruby")
       state_path = File.join(dir, "state.toml")
-      exercism_body = <<~'SH'
+      exercism_body = <<~SH
         if [ "$1" = "download" ]; then
           slug=""
           for arg in "$@"; do
@@ -345,7 +584,7 @@ class ExercismRbCliTest < ExercismRbTestCase
         fi
       SH
 
-      with_fake_commands("exercism", "fake-editor", bodies: { "exercism" => exercism_body }) do |bin_dir, log_path|
+      with_fake_commands("exercism", "fake-editor", bodies: {"exercism" => exercism_body}) do |bin_dir, log_path|
         env = fake_env(bin_dir, log_path).merge("XRB_EDITOR" => "fake-editor")
         code, out, err = run_cli(["new", "assembly-line"], root: root, state_path: state_path, extra_env: env)
 
@@ -356,8 +595,44 @@ class ExercismRbCliTest < ExercismRbTestCase
         assert_equal "assembly-line", Exercism::Rb::State.new(path: state_path).load.fetch("exercise")
         assert_command_sequence(
           log_path,
-          { command: "exercism", pwd: Dir.pwd, args: ["download", "--track=ruby", "--exercise=assembly-line"] },
-          { command: "fake-editor", pwd: File.join(root, "assembly-line"), args: ["assembly_line.rb"] }
+          {command: "exercism", pwd: Dir.pwd, args: ["download", "--track=ruby", "--exercise=assembly-line"]},
+          {command: "fake-editor", pwd: File.join(root, "assembly-line"), args: ["assembly_line.rb"]}
+        )
+      end
+    end
+  end
+
+  def test_cli_new_can_skip_opening_editor
+    Dir.mktmpdir do |dir|
+      root = File.join(dir, "exercism", "ruby")
+      state_path = File.join(dir, "state.toml")
+      exercism_body = <<~SH
+        if [ "$1" = "download" ]; then
+          slug=""
+          for arg in "$@"; do
+            case "$arg" in
+              --exercise=*) slug="${arg#--exercise=}" ;;
+            esac
+          done
+          solution=$(printf '%s' "$slug" | tr '-' '_')
+          mkdir -p "$XRB_ROOT/$slug"
+          : > "$XRB_ROOT/$slug/$solution.rb"
+          : > "$XRB_ROOT/$slug/${solution}_test.rb"
+        fi
+      SH
+
+      with_fake_commands("exercism", bodies: {"exercism" => exercism_body}) do |bin_dir, log_path|
+        env = fake_env(bin_dir, log_path).merge("XRB_EDITOR" => nil, "VISUAL" => nil, "EDITOR" => nil)
+        code, out, err = run_cli(["new", "assembly-line", "--no-edit"], root: root, state_path: state_path, extra_env: env)
+
+        assert_equal 0, code
+        assert_empty err
+        assert_includes out, "Downloading assembly-line"
+        refute_includes out, "Opening assembly-line"
+        assert_equal "assembly-line", Exercism::Rb::State.new(path: state_path).load.fetch("exercise")
+        assert_command_sequence(
+          log_path,
+          {command: "exercism", pwd: Dir.pwd, args: ["download", "--track=ruby", "--exercise=assembly-line"]}
         )
       end
     end
@@ -377,7 +652,7 @@ class ExercismRbCliTest < ExercismRbTestCase
         refute File.exist?(state_path)
         assert_command_sequence(
           log_path,
-          { command: "exercism", pwd: Dir.pwd, args: ["download", "--track=ruby", "--exercise=assembly-line"] }
+          {command: "exercism", pwd: Dir.pwd, args: ["download", "--track=ruby", "--exercise=assembly-line"]}
         )
       end
     end
@@ -393,11 +668,13 @@ class ExercismRbCliTest < ExercismRbTestCase
         code, _out, err = run_cli(["new", "assembly-line"], root: root, state_path: state_path, extra_env: env)
 
         assert_equal 1, code
-        assert_includes err, "Exercise not found"
+        assert_includes err, "Download completed, but xrb could not find the expected exercise directory"
+        assert_includes err, "Exercism CLI probably downloaded to another workspace"
+        assert_includes err, "exercism configure --workspace #{File.dirname(root)}"
         refute File.exist?(state_path)
         assert_command_sequence(
           log_path,
-          { command: "exercism", pwd: Dir.pwd, args: ["download", "--track=ruby", "--exercise=assembly-line"] }
+          {command: "exercism", pwd: Dir.pwd, args: ["download", "--track=ruby", "--exercise=assembly-line"]}
         )
       end
     end

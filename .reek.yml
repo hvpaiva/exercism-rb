@@ -1,0 +1,28 @@
+---
+detectors:
+  # This is a compact CLI. Keep Reek useful for new issues without forcing
+  # command classes or comment boilerplate just to satisfy generic metrics.
+  IrresponsibleModule:
+    enabled: false
+  MissingSafeMethod:
+    enabled: false
+  UtilityFunction:
+    enabled: false
+  NilCheck:
+    enabled: false
+  FeatureEnvy:
+    enabled: false
+  BooleanParameter:
+    enabled: false
+  ControlParameter:
+    enabled: false
+  RepeatedConditional:
+    enabled: false
+  DuplicateMethodCall:
+    max_calls: 3
+  TooManyInstanceVariables:
+    max_instance_variables: 8
+  TooManyMethods:
+    max_methods: 30
+  TooManyStatements:
+    max_statements: 20

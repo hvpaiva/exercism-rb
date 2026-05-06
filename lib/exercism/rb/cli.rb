@@ -42,8 +42,8 @@ module Exercism
         end
 
         0
-      rescue Error => e
-        @ui.error(e.message)
+      rescue Error => error
+        @ui.error(error.message)
         1
       rescue Interrupt
         @ui.error("Interrupted.")
@@ -53,14 +53,15 @@ module Exercism
       private
 
       def new_command
+        skip_editor = extract_no_edit_option!
         exercise = exercise_from_required_arg("new <exercise>", require_existing: false)
 
         @ui.info("Downloading #{@ui.highlight(exercise.slug)}...")
         @runner.run("exercism", "download", "--track=#{exercise.track}", "--exercise=#{exercise.slug}")
-        exercise.ensure_exists!
+        ensure_download_created_exercise!(exercise)
         save_current(exercise)
         @ui.key_value("Path", @ui.path(exercise.path))
-        edit_exercise(exercise)
+        edit_exercise(exercise) unless skip_editor
       end
 
       def edit_command
@@ -68,11 +69,15 @@ module Exercism
       end
 
       def test_command
+        files = extract_file_options!
         exercise = @resolver.resolve(optional_arg)
-        test_file = exercise.test_file
+        test_files = files.empty? ? exercise.test_files(ambiguity_hint: "Use --file FILE to choose test files explicitly.") : files
+        ensure_test_files_exist!(exercise, test_files)
 
         @ui.info("Testing #{@ui.highlight(exercise.slug)}...")
-        @runner.run("ruby", "-r", "minitest/pride", test_file, chdir: exercise.path)
+        test_files.each do |test_file|
+          @runner.run("ruby", "-r", "minitest/pride", test_file, chdir: exercise.path)
+        end
       end
 
       def irb_command
@@ -84,11 +89,16 @@ module Exercism
       end
 
       def submit_command
+        files = extract_file_options!
         exercise = @resolver.resolve(optional_arg)
-        solution_file = exercise.solution_file
 
         @ui.info("Submitting #{@ui.highlight(exercise.slug)}...")
-        @runner.run("exercism", "submit", solution_file, chdir: exercise.path)
+        if files.empty? && exercise.exercism_config?
+          @runner.run("exercism", "submit", chdir: exercise.path)
+        else
+          files = [exercise.solution_file(ambiguity_hint: "Use --file FILE to choose files explicitly.")] if files.empty?
+          @runner.run("exercism", "submit", *files, chdir: exercise.path)
+        end
       end
 
       def use_command
@@ -121,8 +131,8 @@ module Exercism
 
         current = @state.load["exercise"]
         exercises = Dir.children(@root)
-                       .select { |name| File.directory?(File.join(@root, name)) && !name.start_with?(".") }
-                       .sort
+          .select { |name| File.directory?(File.join(@root, name)) && !name.start_with?(".") }
+          .sort
 
         if exercises.empty?
           @ui.warn("No exercises downloaded in #{@root}.")
@@ -131,9 +141,9 @@ module Exercism
 
         @ui.section("Downloaded exercises")
         exercises.each do |slug|
-          marker = slug == current ? "*" : " "
-          label = slug == current ? @ui.highlight(slug) : slug
-          suffix = slug == current ? " #{@ui.muted('current')}" : ""
+          marker = (slug == current) ? "*" : " "
+          label = (slug == current) ? @ui.highlight(slug) : slug
+          suffix = (slug == current) ? " #{@ui.muted("current")}" : ""
           @ui.say("#{marker} #{label}#{suffix}")
         end
       end
@@ -145,19 +155,23 @@ module Exercism
 
       def help_command
         @ui.say(<<~HELP)
-          #{@ui.bold('xrb')} - Exercism Ruby helper
+          #{@ui.bold("xrb")} - Exercism Ruby helper
 
           Usage:
             xrb new <exercise>       download, save as current, and open the editor
             xrb edit [exercise]      open the editor for an exercise
-            xrb test [exercise]      run the exercise test file with minitest/pride
+            xrb test [exercise]      run exercise tests with minitest/pride
             xrb irb [exercise]       open irb -r ./<solution>.rb --simple-prompt
-            xrb submit [exercise]    submit the solution .rb file
+            xrb submit [exercise]    submit the exercise solution
             xrb use <exercise>       save a downloaded exercise as current
             xrb current              show the current exercise
             xrb path [exercise]      print the exercise path
             xrb list                 list downloaded exercises
             xrb clear                clear saved state
+
+          Options:
+            --no-edit               skip opening the editor after xrb new
+            --file FILE              test or submit an explicit file; may be repeated
 
           State:
             #{@state.path}
@@ -165,7 +179,7 @@ module Exercism
           Environment:
             XRB_ROOT     exercise directory (current: #{@root})
             XRB_TRACK    Exercism track (current: #{@track})
-            XRB_EDITOR   editor used by xrb edit/new (default: nvim)
+            XRB_EDITOR   editor used by xrb edit/new
             XRB_STATE    TOML state file
             XRB_COLOR    color output: auto, always, or never
         HELP
@@ -185,10 +199,82 @@ module Exercism
         @runner.run(*editor_args, target, chdir: exercise.path)
       end
 
+      def ensure_download_created_exercise!(exercise)
+        return if exercise.exists?
+
+        raise Error, <<~MESSAGE.chomp
+          Download completed, but xrb could not find the expected exercise directory:
+          #{exercise.path}
+
+          The Exercism CLI probably downloaded to another workspace. Configure it to match XRB_ROOT:
+          exercism configure --workspace #{File.dirname(@root)}
+        MESSAGE
+      end
+
+      def ensure_test_files_exist!(exercise, test_files)
+        test_files.each do |file|
+          next if File.file?(File.absolute_path(file, exercise.path))
+
+          raise Error, "Test file not found: #{file}"
+        end
+      end
+
+      def extract_file_options!
+        files = []
+        remaining = []
+
+        until @argv.empty?
+          arg = @argv.shift
+
+          case arg
+          when "--file"
+            value = @argv.shift
+            raise Error, "Missing value for --file" if blank?(value)
+
+            files << value
+          when /\A--file=(.*)\z/
+            value = Regexp.last_match(1)
+            raise Error, "Missing value for --file" if blank?(value)
+
+            files << value
+          else
+            raise Error, "Unknown option: #{arg}" if arg.start_with?("-")
+
+            remaining << arg
+          end
+        end
+
+        @argv = remaining
+        files
+      end
+
+      def extract_no_edit_option!
+        skip_editor = false
+        remaining = []
+
+        until @argv.empty?
+          arg = @argv.shift
+
+          if arg == "--no-edit"
+            skip_editor = true
+          else
+            raise Error, "Unknown option: #{arg}" if arg.start_with?("-")
+
+            remaining << arg
+          end
+        end
+
+        @argv = remaining
+        skip_editor
+      end
+
       def editor_args_from_config
-        Shellwords.split(Config.editor)
-      rescue ArgumentError => e
-        raise Error, "Invalid editor in XRB_EDITOR/VISUAL/EDITOR: #{e.message}"
+        editor = Config.editor
+        raise Error, "No editor configured. Set XRB_EDITOR, VISUAL, or EDITOR." if blank?(editor)
+
+        Shellwords.split(editor)
+      rescue ArgumentError => error
+        raise Error, "Invalid editor in XRB_EDITOR/VISUAL/EDITOR: #{error.message}"
       end
 
       def ensure_editor_available!(command, chdir:)
@@ -229,7 +315,7 @@ module Exercism
       def exercise_from_required_arg(usage, require_existing: true)
         slug = @argv.shift
         raise Error, "Usage: xrb #{usage}" if blank?(slug)
-        raise Error, "Too many arguments: #{@argv.join(' ')}" unless @argv.empty?
+        raise Error, "Too many arguments: #{@argv.join(" ")}" unless @argv.empty?
 
         Exercise.new(slug: slug, track: @track, root: @root).tap do |exercise|
           exercise.ensure_exists! if require_existing
@@ -238,7 +324,7 @@ module Exercism
 
       def optional_arg
         slug = @argv.shift
-        raise Error, "Too many arguments: #{@argv.join(' ')}" unless @argv.empty?
+        raise Error, "Too many arguments: #{@argv.join(" ")}" unless @argv.empty?
 
         slug
       end

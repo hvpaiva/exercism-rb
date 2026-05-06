@@ -36,6 +36,34 @@ task :warnings do
   sh RUBY, "-w", "-Ilib:test", "test/exercism_rb_test.rb"
 end
 
+desc "Run style checks"
+task :style do
+  sh "bundle", "exec", "standardrb"
+end
+
+desc "Run dependency audit"
+task :audit do
+  sh "bundle", "exec", "bundle-audit", "check", "--update"
+end
+
+desc "Run required quality checks"
+task quality: [:style, :audit]
+
+desc "Run Reek smell report"
+task :smells do
+  sh "bundle", "exec", "reek", "lib"
+end
+
+desc "Generate RubyCritic report"
+task :critic do
+  sh "bundle", "exec", "rubycritic", "--no-browser", "lib", "test"
+end
+
+desc "Run tests with coverage enabled"
+task :coverage do
+  sh({"COVERAGE" => "1"}, RUBY, "-Ilib:test", "test/exercism_rb_test.rb")
+end
+
 namespace :smoke do
   desc "Run the checkout executable as a user would invoke it"
   task :bin do
@@ -74,7 +102,7 @@ namespace :release do
 end
 
 desc "Run the full local verification suite"
-task ci: [:syntax, :test, :warnings, "smoke:bin", "smoke:gem"]
+task ci: [:syntax, :test, :warnings, :quality, "smoke:bin", "smoke:gem"]
 
 task default: :test
 

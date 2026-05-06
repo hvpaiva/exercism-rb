@@ -93,11 +93,11 @@ module Exercism
 
       def quote(value)
         escaped = value.to_s
-                       .gsub("\\", "\\\\")
-                       .gsub('"', '\\"')
-                       .gsub("\n", "\\n")
-                       .gsub("\r", "\\r")
-                       .gsub("\t", "\\t")
+          .gsub("\\", "\\\\")
+          .gsub('"', '\\"')
+          .gsub("\n", "\\n")
+          .gsub("\r", "\\r")
+          .gsub("\t", "\\t")
 
         %("#{escaped}")
       end

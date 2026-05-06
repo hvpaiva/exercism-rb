@@ -1,5 +1,10 @@
 # exercism-rb
 
+[![Gem Version](https://badge.fury.io/rb/exercism-rb.svg)](https://rubygems.org/gems/exercism-rb)
+[![CI](https://github.com/hvpaiva/exercism-rb/actions/workflows/ci.yml/badge.svg)](https://github.com/hvpaiva/exercism-rb/actions/workflows/ci.yml)
+[![License](https://img.shields.io/github/license/hvpaiva/exercism-rb)](LICENSE)
+[![Downloads](https://img.shields.io/gem/dt/exercism-rb)](https://rubygems.org/gems/exercism-rb)
+
 `xrb` is a small CLI that removes friction from the Exercism Ruby workflow.
 
 It remembers the current exercise, runs commands from the right exercise directory, opens your editor, starts IRB with the solution file loaded, runs tests, and submits the solution file without requiring manual `cd` work.
@@ -30,7 +35,7 @@ gem update exercism-rb
 
 - Ruby 3.2+
 - Exercism CLI for `xrb new` and `xrb submit`
-- An editor available on `PATH`
+- An editor available on `PATH` and configured through `XRB_EDITOR`, `VISUAL`, or `EDITOR` for `xrb edit` and default `xrb new`
 
 Configure the Exercism CLI separately:
 
@@ -53,9 +58,9 @@ xrb submit
 ```bash
 xrb new <exercise>       # download, save as current, and open the editor
 xrb edit [exercise]      # open the editor for an exercise
-xrb test [exercise]      # run the exercise test file with minitest/pride
+xrb test [exercise]      # run configured or selected test files
 xrb irb [exercise]       # open irb -r ./<solution>.rb --simple-prompt
-xrb submit [exercise]    # submit the solution .rb file
+xrb submit [exercise]    # submit through the Exercism CLI
 xrb use <exercise>       # save a downloaded exercise as current
 xrb current              # show the current exercise
 xrb path [exercise]      # print the exercise path
@@ -69,7 +74,18 @@ Exercise resolution priority:
 2. Current working directory when inside `XRB_ROOT`
 3. Saved state from the previous `xrb new` or `xrb use`
 
-`xrb test` expects a single `*_test.rb` file in the exercise directory and reports an ambiguity if more than one is present.
+`xrb test` reads `.exercism/config.json` when available and runs each file listed in `files.test`. Without that config, it preserves the older fallback of requiring a single `*_test.rb` file.
+
+`xrb submit` lets the Exercism CLI choose default solution files when `.exercism/config.json` is present. Without that config, it preserves the older fallback of requiring a single solution `.rb` file.
+
+Both `xrb test` and `xrb submit` accept a repeatable explicit override:
+
+```bash
+xrb test --file custom_test.rb
+xrb submit two-fer --file two_fer.rb --file helper.rb
+```
+
+Use `xrb new <exercise> --no-edit` to download and save the exercise as current without opening an editor.
 
 ## Output And Color
 
@@ -109,22 +125,22 @@ updated_at = "2026-05-05T12:00:00Z"
 ```bash
 XRB_ROOT=~/exercism/ruby      # exercise directory
 XRB_TRACK=ruby                # Exercism track
-XRB_EDITOR=nvim               # editor used by xrb new/edit
+XRB_EDITOR="code --wait"      # editor used by xrb new/edit
 XRB_STATE=~/.local/state/exercism-rb/state.toml
 XRB_COLOR=auto                # auto, always, or never
 ```
 
 `xrb new` uses `exercism download`, which downloads into the workspace configured in the Exercism CLI. If you customize `XRB_ROOT`, configure the Exercism workspace so its track directory matches it, for example `exercism configure --workspace ~/exercism` for `XRB_ROOT=~/exercism/ruby`.
 
-Editor commands are split with shell-like quoting, so this works:
+Set `XRB_EDITOR`, `VISUAL`, or `EDITOR` before running `xrb edit` or `xrb new` without `--no-edit`. Editor commands are split with shell-like quoting, so this works:
 
 ```bash
 XRB_EDITOR="code --wait" xrb edit
 ```
 
-## Source Installer
+## Source Install
 
-RubyGems is the recommended installation path. The repository also keeps a source installer for users who want to install directly from `main`:
+RubyGems is the recommended installation path. If you intentionally want to install directly from the current `main` branch, use the source installer:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/hvpaiva/exercism-rb/main/install.rb | ruby
@@ -138,23 +154,7 @@ The installer clones or updates the repository at `~/.local/share/exercism-rb` a
 
 It also installs the Exercism CLI into `~/.local/bin/exercism` when `exercism` is not already available.
 
-To skip the Exercism CLI install:
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/hvpaiva/exercism-rb/main/install.rb | ruby - --no-exercism
-```
-
-To force-install or update the Exercism CLI:
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/hvpaiva/exercism-rb/main/install.rb | ruby - --with-exercism
-```
-
-If `~/.local/bin/xrb` is an existing symlink, the installer replaces the symlink without deleting the old target. If it is a real file or directory, the installer refuses to replace it unless you opt in:
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/hvpaiva/exercism-rb/main/install.rb | XRB_INSTALL_OVERWRITE=1 ruby
-```
+Pass `--no-exercism` after `ruby -` to skip the Exercism CLI install, or `--with-exercism` to force-install or update it. If `~/.local/bin/xrb` is a real file or directory, set `XRB_INSTALL_OVERWRITE=1` to allow replacement; existing symlinks are replaced without deleting their old target.
 
 ## Development
 
@@ -176,7 +176,7 @@ Run the full verification suite:
 bundle exec rake ci
 ```
 
-The CI task checks syntax, runs tests, runs tests with Ruby warnings enabled, smoke-tests the checkout executable, builds the gem, installs it into an isolated `GEM_HOME`, and smoke-tests the installed `xrb` executable.
+The CI task checks syntax, runs tests, runs tests with Ruby warnings enabled, runs required quality checks, smoke-tests the checkout executable, builds the gem, installs it into an isolated `GEM_HOME`, and smoke-tests the installed `xrb` executable.
 
 Useful individual tasks:
 
@@ -184,29 +184,23 @@ Useful individual tasks:
 bundle exec rake test
 bundle exec rake syntax
 bundle exec rake warnings
+bundle exec rake style
+bundle exec rake audit
+bundle exec rake quality
+bundle exec rake coverage
 bundle exec rake smoke:bin
 bundle exec rake smoke:gem
 ```
 
-## Release
+Optional maintenance reports:
 
-Publishing is automated through RubyGems Trusted Publishing and GitHub Actions. No long-lived `RUBYGEMS_AUTH_TOKEN` is required for the recommended release path.
-
-Before the first release, configure a pending trusted publisher on RubyGems.org:
-
-```text
-Gem name: exercism-rb
-GitHub repository: hvpaiva/exercism-rb
-Workflow filename: release.yml
-Environment: release
+```bash
+bundle exec rake smells
+bundle exec rake critic
 ```
 
-Release checklist:
+`bundle exec rake critic` writes its report to `tmp/rubycritic/`, which is ignored by Git.
 
-1. Update `lib/exercism/rb/version.rb`
-2. Update `CHANGELOG.md`
-3. Run `bundle exec rake ci`
-4. Commit the release changes
-5. Create and push a tag that matches the version, for example `v0.1.0` for `VERSION = "0.1.0"`
+## Release
 
-The `Release` workflow runs only for `v*` tags. It verifies the project and publishes the gem through `rubygems/release-gem@v1`.
+Release process details are maintainer documentation and live in `CONTRIBUTING.md`.

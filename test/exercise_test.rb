@@ -31,6 +31,80 @@ class ExercismRbExerciseTest < ExercismRbTestCase
 
       assert_equal "two_fer.rb", exercise.solution_file
       assert_equal "two_fer_test.rb", exercise.test_file
+      assert_equal ["two_fer.rb"], exercise.solution_files
+      assert_equal ["two_fer_test.rb"], exercise.test_files
+    end
+  end
+
+  def test_exercise_uses_configured_solution_files
+    Dir.mktmpdir do |root|
+      create_exercise(root, "two-fer", solution_files: ["two_fer.rb", "helper.rb"], config: true)
+
+      exercise = Exercism::Rb::Exercise.new(slug: "two-fer", root: root)
+
+      assert_equal ["two_fer.rb", "helper.rb"], exercise.solution_files
+    end
+  end
+
+  def test_exercise_uses_configured_test_files
+    Dir.mktmpdir do |root|
+      create_exercise(root, "two-fer", test_files: ["two_fer_test.rb", "extra_test.rb"], config: true)
+
+      exercise = Exercism::Rb::Exercise.new(slug: "two-fer", root: root)
+
+      assert_equal ["two_fer_test.rb", "extra_test.rb"], exercise.test_files
+    end
+  end
+
+  def test_exercise_reports_invalid_config_json
+    Dir.mktmpdir do |root|
+      exercise_dir = create_exercise(root, "two-fer")
+      FileUtils.mkdir_p(File.join(exercise_dir, ".exercism"))
+      File.write(File.join(exercise_dir, ".exercism", "config.json"), "not json")
+      exercise = Exercism::Rb::Exercise.new(slug: "two-fer", root: root)
+
+      error = assert_raises(Exercism::Rb::Error) { exercise.test_files }
+
+      assert_includes error.message, "Invalid Exercism config"
+      assert_includes error.message, ".exercism/config.json"
+    end
+  end
+
+  def test_exercise_reports_non_object_config_json
+    Dir.mktmpdir do |root|
+      exercise_dir = create_exercise(root, "two-fer")
+      FileUtils.mkdir_p(File.join(exercise_dir, ".exercism"))
+      File.write(File.join(exercise_dir, ".exercism", "config.json"), "[]")
+      exercise = Exercism::Rb::Exercise.new(slug: "two-fer", root: root)
+
+      error = assert_raises(Exercism::Rb::Error) { exercise.test_files }
+
+      assert_includes error.message, "Invalid Exercism config"
+      assert_includes error.message, "root must be an object"
+    end
+  end
+
+  def test_exercise_reports_empty_configured_file_list
+    Dir.mktmpdir do |root|
+      exercise_dir = create_exercise(root, "two-fer")
+      write_exercism_config(exercise_dir, solution_files: [])
+      exercise = Exercism::Rb::Exercise.new(slug: "two-fer", root: root)
+
+      error = assert_raises(Exercism::Rb::Error) { exercise.solution_files }
+
+      assert_includes error.message, "files.solution must not be empty"
+    end
+  end
+
+  def test_exercise_reports_blank_configured_file_path
+    Dir.mktmpdir do |root|
+      exercise_dir = create_exercise(root, "two-fer")
+      write_exercism_config(exercise_dir, test_files: [""])
+      exercise = Exercism::Rb::Exercise.new(slug: "two-fer", root: root)
+
+      error = assert_raises(Exercism::Rb::Error) { exercise.test_files }
+
+      assert_includes error.message, "files.test contains an empty path"
     end
   end
 
