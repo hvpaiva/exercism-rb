@@ -6,16 +6,10 @@ It remembers the current exercise, runs commands from the right exercise directo
 
 ## Install
 
-For the private `hvpaiva/xr` repository, authenticate GitHub CLI first:
+After the repository is public, install with one command:
 
 ```bash
-gh auth login
-```
-
-Then install with one command:
-
-```bash
-sh -c 'set -eu; script=$(gh api -H "Accept: application/vnd.github.raw" repos/hvpaiva/xr/contents/install.sh); printf "%s\n" "$script" | sh'
+curl -fsSL https://raw.githubusercontent.com/hvpaiva/xr/main/install.sh | sh
 ```
 
 The installer clones or updates the repository at `~/.local/share/xr` and creates this symlink:
@@ -24,14 +18,46 @@ The installer clones or updates the repository at `~/.local/share/xr` and create
 ~/.local/bin/xr -> ~/.local/share/xr/bin/xr
 ```
 
+It also installs the Exercism CLI into `~/.local/bin/exercism` when `exercism` is not already available.
+
+To skip the Exercism CLI install:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/hvpaiva/xr/main/install.sh | sh -s -- --no-exercism
+```
+
+To force-install or update the Exercism CLI:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/hvpaiva/xr/main/install.sh | sh -s -- --with-exercism
+```
+
 Make sure `~/.local/bin` is in your `PATH`.
+
+If `~/.local/bin/xr` already exists and points somewhere else, the installer refuses to replace it unless you opt in:
+
+```bash
+XR_INSTALL_OVERWRITE=1 curl -fsSL https://raw.githubusercontent.com/hvpaiva/xr/main/install.sh | sh
+```
+
+While this repository is private, run the installer from a checkout and use the SSH clone URL:
+
+```bash
+XR_REPO_URL=git@github.com:hvpaiva/xr.git ./install.sh
+```
 
 ## Requirements
 
 - Ruby 3.2+
 - Git
-- GitHub CLI (`gh`) for the private one-command install
-- Exercism CLI for `xr new` and `xr submit`
+- curl or wget when the installer needs to download the Exercism CLI
+- Exercism CLI for `xr new` and `xr submit` if you skip automatic install
+
+The installer installs the Exercism binary, but it does not configure your Exercism API token. Configure it separately:
+
+```bash
+exercism configure --token=<your-api-token>
+```
 
 ## Main Flow
 
@@ -101,7 +127,7 @@ XR_EDITOR="code --wait" xr edit
 Run the installer again:
 
 ```bash
-sh -c 'set -eu; script=$(gh api -H "Accept: application/vnd.github.raw" repos/hvpaiva/xr/contents/install.sh); printf "%s\n" "$script" | sh'
+curl -fsSL https://raw.githubusercontent.com/hvpaiva/xr/main/install.sh | sh
 ```
 
 ## Local Development
