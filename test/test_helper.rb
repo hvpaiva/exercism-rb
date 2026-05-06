@@ -31,11 +31,7 @@ module ExercismRbTestHelpers
   def run_cli(argv, root:, state_path:, extra_env: {})
     out = StringIO.new
     err = StringIO.new
-    env = {
-      "XRB_ROOT" => root,
-      "XRB_STATE" => state_path,
-      "XRB_TRACK" => "ruby"
-    }.merge(extra_env)
+    env = cli_env(root: root, state_path: state_path).merge(extra_env)
 
     code = with_env(env) { Exercism::Rb::CLI.start(argv, out: out, err: err) }
 
@@ -43,11 +39,7 @@ module ExercismRbTestHelpers
   end
 
   def run_bin(*args, root:, state_path:, extra_env: {})
-    env = {
-      "XRB_ROOT" => root,
-      "XRB_STATE" => state_path,
-      "XRB_TRACK" => "ruby"
-    }.merge(extra_env)
+    env = cli_env(root: root, state_path: state_path).merge(extra_env)
 
     out, err, status = Open3.capture3(env, RUBY, File.join(PROJECT_ROOT, "bin/xrb"), *args)
 
@@ -69,6 +61,18 @@ module ExercismRbTestHelpers
     {
       "PATH" => "#{bin_dir}:#{ENV.fetch('PATH')}",
       "XRB_COMMAND_LOG" => log_path
+    }
+  end
+
+  def cli_env(root:, state_path:)
+    {
+      "XRB_ROOT" => root,
+      "XRB_STATE" => state_path,
+      "XRB_TRACK" => "ruby",
+      "XRB_COLOR" => nil,
+      "NO_COLOR" => nil,
+      "CLICOLOR" => nil,
+      "CLICOLOR_FORCE" => nil
     }
   end
 

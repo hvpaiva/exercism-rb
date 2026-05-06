@@ -29,7 +29,7 @@ module Exercism
         }
 
         FileUtils.mkdir_p(File.dirname(@path))
-        tmp_path = "#{@path}.tmp.#{$PROCESS_ID}"
+        tmp_path = "#{@path}.tmp.#{Process.pid}"
         File.write(tmp_path, to_toml(data))
         File.rename(tmp_path, @path)
         data

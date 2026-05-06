@@ -164,11 +164,14 @@ class ExercismRbInstallTest < ExercismRbTestCase
     end.new(response)
     start_args = nil
     original_start = Net::HTTP.method(:start)
+    original_verbose = $VERBOSE
 
+    $VERBOSE = nil
     Net::HTTP.define_singleton_method(:start) do |host, port, use_ssl:, &block|
       start_args = { host: host, port: port, use_ssl: use_ssl }
       block.call(fake_http)
     end
+    $VERBOSE = original_verbose
 
     result = ExercismRbInstaller.new([]).send(:http_get, URI("https://example.test/archive.tar.gz"))
 
@@ -179,7 +182,9 @@ class ExercismRbInstallTest < ExercismRbTestCase
     assert_equal ExercismRbInstaller::HTTP_WRITE_TIMEOUT, fake_http.write_timeout
     assert_equal "xrb-installer", fake_http.recorded_request["User-Agent"]
   ensure
+    $VERBOSE = nil
     Net::HTTP.define_singleton_method(:start, original_start) if original_start
+    $VERBOSE = original_verbose
   end
 
   def test_installer_refuses_broad_overwrite_directory

@@ -55,10 +55,11 @@ module Exercism
       def new_command
         exercise = exercise_from_required_arg("new <exercise>", require_existing: false)
 
-        @ui.info("Downloading #{exercise.slug}...")
+        @ui.info("Downloading #{@ui.highlight(exercise.slug)}...")
         @runner.run("exercism", "download", "--track=#{exercise.track}", "--exercise=#{exercise.slug}")
         exercise.ensure_exists!
         save_current(exercise)
+        @ui.key_value("Path", @ui.path(exercise.path))
         edit_exercise(exercise)
       end
 
@@ -70,7 +71,7 @@ module Exercism
         exercise = @resolver.resolve(optional_arg)
         test_file = exercise.test_file
 
-        @ui.info("Testing #{exercise.slug}...")
+        @ui.info("Testing #{@ui.highlight(exercise.slug)}...")
         @runner.run("ruby", "-r", "minitest/pride", test_file, chdir: exercise.path)
       end
 
@@ -78,7 +79,7 @@ module Exercism
         exercise = @resolver.resolve(optional_arg)
         solution_file = exercise.solution_file
 
-        @ui.info("Opening IRB for #{exercise.slug}...")
+        @ui.info("Opening IRB for #{@ui.highlight(exercise.slug)}...")
         @runner.run("irb", "-r", "./#{solution_file}", "--simple-prompt", chdir: exercise.path)
       end
 
@@ -86,15 +87,15 @@ module Exercism
         exercise = @resolver.resolve(optional_arg)
         solution_file = exercise.solution_file
 
-        @ui.info("Submitting #{exercise.slug}...")
+        @ui.info("Submitting #{@ui.highlight(exercise.slug)}...")
         @runner.run("exercism", "submit", solution_file, chdir: exercise.path)
       end
 
       def use_command
         exercise = exercise_from_required_arg("use <exercise>")
         save_current(exercise)
-        @ui.success("Current exercise: #{exercise.slug}")
-        @ui.command(exercise.path)
+        @ui.success("Current exercise: #{@ui.highlight(exercise.slug)}")
+        @ui.command(@ui.path(exercise.path))
       end
 
       def current_command
@@ -102,10 +103,11 @@ module Exercism
         raise Error, "No current exercise saved." if data.empty? || blank?(data["exercise"])
 
         path = data["path"]
-        @ui.say(@ui.bold(data.fetch("exercise")))
-        @ui.say("track: #{data.fetch('track', @track)}")
-        @ui.say("path:  #{path}")
-        @ui.say("state: #{@state.path}")
+        @ui.title("Current exercise")
+        @ui.key_value("Exercise", @ui.highlight(data.fetch("exercise")))
+        @ui.key_value("Track", data.fetch("track", @track))
+        @ui.key_value("Path", @ui.path(path))
+        @ui.key_value("State", @ui.path(@state.path))
         @ui.warn("The saved directory no longer exists.") if path && !Dir.exist?(path)
       end
 
@@ -127,9 +129,12 @@ module Exercism
           return
         end
 
+        @ui.section("Downloaded exercises")
         exercises.each do |slug|
           marker = slug == current ? "*" : " "
-          @ui.say("#{marker} #{slug}")
+          label = slug == current ? @ui.highlight(slug) : slug
+          suffix = slug == current ? " #{@ui.muted('current')}" : ""
+          @ui.say("#{marker} #{label}#{suffix}")
         end
       end
 
@@ -162,6 +167,7 @@ module Exercism
             XRB_TRACK    Exercism track (current: #{@track})
             XRB_EDITOR   editor used by xrb edit/new (default: nvim)
             XRB_STATE    TOML state file
+            XRB_COLOR    color output: auto, always, or never
         HELP
       end
 
@@ -175,7 +181,7 @@ module Exercism
         raise Error, "Invalid editor in XRB_EDITOR/VISUAL/EDITOR." if editor_args.empty?
         ensure_editor_available!(editor_args.first, chdir: exercise.path)
 
-        @ui.info("Opening #{exercise.slug}...")
+        @ui.info("Opening #{@ui.highlight(exercise.slug)}...")
         @runner.run(*editor_args, target, chdir: exercise.path)
       end
 

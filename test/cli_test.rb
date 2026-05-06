@@ -32,7 +32,7 @@ class ExercismRbCliTest < ExercismRbTestCase
       assert_equal 0, code
       assert_empty err
       assert_includes out, "two-fer"
-      assert_includes out, "path:  #{exercise_dir}"
+      assert_includes out, "Path     #{exercise_dir}"
 
       code, out, err = run_cli(["path"], root: root, state_path: state_path)
       assert_equal 0, code

@@ -17,6 +17,24 @@ class ExercismRbStateTest < ExercismRbTestCase
     end
   end
 
+  def test_state_save_does_not_emit_warnings
+    Dir.mktmpdir do |dir|
+      state = Exercism::Rb::State.new(path: File.join(dir, "state.toml"))
+      stderr = StringIO.new
+      original_stderr = $stderr
+      original_verbose = $VERBOSE
+
+      $stderr = stderr
+      $VERBOSE = true
+      state.save(track: "ruby", exercise: "two-fer", path: File.join(dir, "two-fer"))
+
+      assert_empty stderr.string
+    ensure
+      $stderr = original_stderr
+      $VERBOSE = original_verbose
+    end
+  end
+
   def test_state_parses_escaped_values_and_ignores_unknown_keys
     Dir.mktmpdir do |dir|
       state = Exercism::Rb::State.new(path: File.join(dir, "state.toml"))
