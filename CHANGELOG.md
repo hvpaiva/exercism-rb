@@ -7,18 +7,20 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ## Unreleased
 
+## 0.1.0 - 2026-05-06
+
 ### Added
 
+- `xrb` CLI for downloading, selecting, opening, testing, inspecting, and submitting Exercism Ruby exercises.
+- Source installer for users who want to install directly from the repository.
 - RubyGems release preparation with CI, packaged gem smoke tests, and Trusted Publishing workflow.
+- Colorized CLI output with explicit `XRB_COLOR`, `NO_COLOR`, and `CLICOLOR_FORCE` controls.
 - Project documentation for development, security, contribution, and release practices.
 
 ### Changed
 
 - Installation documentation now treats RubyGems as the primary distribution channel.
 
-## 0.1.0 - Unreleased
+### Fixed
 
-### Added
-
-- `xrb` CLI for downloading, selecting, opening, testing, inspecting, and submitting Exercism Ruby exercises.
-- Source installer for users who want to install directly from the repository.
+- State saves now use `Process.pid` for temporary files, avoiding Ruby warnings from an uninitialized global variable.
